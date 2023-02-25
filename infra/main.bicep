@@ -62,13 +62,10 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
   }
 }
 
-resource env 'Microsoft.App/managedEnvironments@2022-10-01' = {
+resource env 'Microsoft.App/managedEnvironments@2022-03-01' = {
   name: envName
   location: location
   tags: tags
-  sku: {
-    name: 'Consumption'
-  }
   properties: {
     appLogsConfiguration: {
       destination: 'log-analytics'
@@ -80,7 +77,7 @@ resource env 'Microsoft.App/managedEnvironments@2022-10-01' = {
   }
 }
 
-resource frontend 'Microsoft.App/containerApps@2022-10-01' = {
+resource frontend 'Microsoft.App/containerApps@2022-03-01' = {
   name: frontendAppName
   location: location
   tags: tags
@@ -132,7 +129,7 @@ resource frontend 'Microsoft.App/containerApps@2022-10-01' = {
   }
 }
 
-resource backend 'Microsoft.App/containerApps@2022-10-01' = {
+resource backend 'Microsoft.App/containerApps@2022-03-01' = {
   name: backendAppName
   location: location
   tags: tags
