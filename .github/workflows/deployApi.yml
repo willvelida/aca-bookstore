@@ -1,0 +1,116 @@
+name: Deploy Bookstore API
+
+on: [workflow_dispatch]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: 'Setup Go'
+        uses: actions/setup-go@v3
+        with:
+          go-version: '>=1.17.0'
+          cache: true
+
+      - name: 'Build Project'
+        working-directory: cmd
+        run: go build .
+        continue-on-error: false
+
+      - name: 'Test project'
+        working-directory: test
+        run: go test . -v
+        continue-on-error: false
+
+  build-image:
+    needs: [build-and-test]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./src/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Sign into Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get ACR name
+        id: getacrname
+        run: |
+          acrName=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].name" -o tsv)
+          echo "::set-output name=acrName::$acrName"
+      
+      - name: Get ACR Credentials
+        id: getacrcreds
+        run: |
+          loginServer=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].loginServer" -o tsv)
+          loginName=$(az acr credential show -n ${{ steps.getacrname.outputs.acrName }} --resource-group ${{ secrets.RG_NAME }} --query username -o tsv)
+          password=$(az acr credential show -n ${{ steps.getacrname.outputs.acrName }} --resource-group ${{ secrets.RG_NAME }} --query "passwords[0].value" -o tsv)
+          echo "::set-output name=loginServer::$loginServer"
+          echo "::set-output name=loginName::$loginName"
+          echo "::set-output name=password::$password"
+
+      - name: 'Build and Push API Image to ACR'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ steps.getacrcreds.outputs.loginServer }}
+          username: ${{ steps.getacrname.outputs.acrName }}
+          password: ${{ steps.getacrcreds.outputs.password }}
+      - run: |
+          docker build . -t ${{ steps.getacrcreds.outputs.loginServer }}/aca-bookstore-api:${{ github.sha }}
+          docker push ${{ steps.getacrcreds.outputs.loginServer }}/aca-bookstore-api:${{ github.sha }}
+
+  deploy-api:
+    needs: [build-image]
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Sign into Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get ACR name
+        id: getacrname
+        run: |
+          acrName=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].name" -o tsv)
+          echo "::set-output name=acrName::$acrName"
+      
+      - name: Get ACR Credentials
+        id: getacrcreds
+        run: |
+          loginServer=$(az acr list --resource-group ${{ secrets.RG_NAME }} --query "[0].loginServer" -o tsv)
+          loginName=$(az acr credential show -n ${{ steps.getacrname.outputs.acrName }} --resource-group ${{ secrets.RG_NAME }} --query username -o tsv)
+          password=$(az acr credential show -n ${{ steps.getacrname.outputs.acrName }} --resource-group ${{ secrets.RG_NAME }} --query "passwords[0].value" -o tsv)
+          echo "::set-output name=loginServer::$loginServer"
+          echo "::set-output name=loginName::$loginName"
+          echo "::set-output name=password::$password"
+
+      - name: 'Deploy Container App'
+        uses: Azure/cli@v1
+        with:
+          inlineScript: |
+            echo "Installing containerapp extension"
+            az extension add -n containerapp --yes
+            echo "Starting Deploying"
+            az containerapp update -n bookstore-api -g ${{ secrets.AZURE_RG }} -i ${{ steps.getacrserver.outputs.loginServer }}/aca-bookstore-api:${{ github.sha }} --debug
