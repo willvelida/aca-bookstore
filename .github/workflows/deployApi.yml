@@ -161,7 +161,6 @@ jobs:
   deploy-infra:
     needs: [preview-infra]
     runs-on: ubuntu-latest
-    environment: Production
     steps:
       - uses: actions/checkout@v2
 
@@ -192,7 +191,6 @@ jobs:
   deploy-api:
     needs: [deploy-infra]
     runs-on: ubuntu-latest
-    environment: Production
 
     steps:
       - name: Checkout
@@ -228,4 +226,4 @@ jobs:
             echo "Installing containerapp extension"
             az extension add -n containerapp --yes
             echo "Starting Deploying"
-            az containerapp update -n bookstore-api -g ${{ secrets.AZURE_RG }} -i ${{ steps.getacrserver.outputs.loginServer }}/aca-bookstore-api:${{ github.sha }} --debug
+            az containerapp update -n bookstore-api -g ${{ secrets.AZURE_RG }} -i ${{ steps.getacrname.outputs.acrName }}.azurecr.io/aca-bookstore-api:${{ github.sha }} --debug
