@@ -156,7 +156,7 @@ jobs:
         name: Run what-if
         with:
           inlineScript: |
-            az deployment group what-if --resource-group ${{ secrets.AZURE_RG }} --template-file ./src/api/infra/main.bicep --parmaters containerImage=${{ steps.getimages.outputs.apiImage }}
+            az deployment group what-if --resource-group ${{ secrets.AZURE_RG }} --template-file ./src/api/infra/main.bicep --parameters containerImage=${{ steps.getimages.outputs.apiImage }}
 
   deploy-infra:
     needs: [preview-infra]
