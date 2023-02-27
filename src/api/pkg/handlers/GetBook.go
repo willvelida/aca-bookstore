@@ -26,7 +26,6 @@ func GetBook(w http.ResponseWriter, r *http.Request) {
 			// If not, send 404
 			w.Header().Add("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode("Not Found!")
 		}
 	}
 }
