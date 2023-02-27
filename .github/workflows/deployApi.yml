@@ -102,7 +102,7 @@ jobs:
             az bicep build --file ./src/api/infra/main.bicep
 
   validate-infra:
-    needs: [lint-infa]
+    needs: [lint-infra]
     runs-on: ubuntu-latest
 
     steps:
