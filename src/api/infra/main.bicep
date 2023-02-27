@@ -49,6 +49,13 @@ resource backend 'Microsoft.App/containerApps@2022-03-01' = {
           value: acr.listCredentials().passwords[0].value
         }
       ]
+      registries: [
+        {
+          server: acr.properties.loginServer
+          passwordSecretRef: 'containerregistry-password'
+          username: acr.listCredentials().username
+        }
+      ]
     }
     template: {
       containers: [
