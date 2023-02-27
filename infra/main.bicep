@@ -23,7 +23,6 @@ param tags object = {
 }
 
 var frontendAppName = 'bookstore-web'
-var backendAppName = 'bookstore-api'
 
 resource law 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: lawName
@@ -96,63 +95,18 @@ resource frontend 'Microsoft.App/containerApps@2022-03-01' = {
           value: acr.listCredentials().passwords[0].value
         }
       ]
+      registries: [
+        {
+          server: acr.properties.loginServer
+          passwordSecretRef: 'containerregistry-password'
+          username: acr.listCredentials().username
+        }
+      ]
     }
     template: {
       containers: [
         {
           name: frontendAppName
-          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-          resources: {
-            cpu: json('0.5')
-            memory: '1.0Gi'
-          }
-        }
-      ]
-      scale: {
-        minReplicas: 0
-        maxReplicas: 3
-        rules: [
-          {
-            name: 'http-scale-rule'
-            http: {
-              metadata: {
-                concurrentRequests: '100'
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-}
-
-resource backend 'Microsoft.App/containerApps@2022-03-01' = {
-  name: backendAppName
-  location: location
-  tags: tags
-  properties: {
-    managedEnvironmentId: env.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        allowInsecure: false
-      }
-      activeRevisionsMode: 'Multiple'
-      secrets: [
-        {
-          name: 'containerregistry-password'
-          value: acr.listCredentials().passwords[0].value
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: backendAppName
           image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           resources: {
             cpu: json('0.5')

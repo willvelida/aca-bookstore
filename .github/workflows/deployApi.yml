@@ -80,8 +80,117 @@ jobs:
           docker build . -t ${{ steps.getacrcreds.outputs.loginServer }}/aca-bookstore-api:${{ github.sha }}
           docker push ${{ steps.getacrcreds.outputs.loginServer }}/aca-bookstore-api:${{ github.sha }}
 
-  deploy-api:
+  lint-infra:
     needs: [build-image]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Sign into Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Lint Bicep
+        uses: Azure/cli@v1
+        with:
+          inlineScript: |
+            az bicep build --file ./src/api/infra/main.bicep
+
+  validate-infra:
+    needs: [lint-infa]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Sign into Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Get current image'
+        id: getimages
+        run: |
+          echo "Installing containerapp extension"
+          az extension add -n containerapp --yes
+          apiImage=$(az containerapp show --name bookstore-api --resource-group ${{ secrets.AZURE_RG }} --query "properties.template.containers[0].image" -o tsv)  
+          echo "::set-output name=apiImage::$apiImage"
+
+      - name: Run preflight validation
+        uses: azure/arm-deploy@v1
+        with:
+          deploymentName: ${{ github.run_number }}
+          resourceGroupName: ${{ secrets.AZURE_RG }}
+          template: ./src/api/infra/main.bicep
+          deploymentMode: Validate
+          parameters: containerImage=${{ steps.getimages.outputs.apiImage }}
+
+  preview-infra:
+    needs: [validate-infra]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: azure/login@v1
+        name: Sign into Azure
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Get current image'
+        id: getimages
+        run: |
+          echo "Installing containerapp extension"
+          az extension add -n containerapp --yes
+          apiImage=$(az containerapp show --name bookstore-api --resource-group ${{ secrets.AZURE_RG }} --query "properties.template.containers[0].image" -o tsv)  
+          echo "::set-output name=apiImage::$apiImage"
+
+      - uses: Azure/cli@v1
+        name: Run what-if
+        with:
+          inlineScript: |
+            az deployment group what-if --resource-group ${{ secrets.AZURE_RG }} --template-file ./src/api/infra/main.bicep --parmaters containerImage=${{ steps.getimages.outputs.apiImage }}
+
+  deploy-infra:
+    needs: [preview-infra]
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Sign into Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Get current image'
+        id: getimages
+        run: |
+          echo "Installing containerapp extension"
+          az extension add -n containerapp --yes
+          apiImage=$(az containerapp show --name bookstore-api --resource-group ${{ secrets.AZURE_RG }} --query "properties.template.containers[0].image" -o tsv)  
+          echo "::set-output name=apiImage::$apiImage"
+
+      - name: Deploy Bicep Template
+        uses: azure/arm-deploy@v1
+        with:
+          deploymentName: ${{ github.run_number }}
+          resourceGroupName: ${{ secrets.AZURE_RG }}
+          template: ./src/api/infra/main.bicep
+          deploymentMode: Incremental
+          parameters: containerImage=${{ steps.getimages.outputs.apiImage }}
+
+  deploy-api:
+    needs: [deploy-infra]
     runs-on: ubuntu-latest
     environment: Production
 
